@@ -1,0 +1,34 @@
+# 文件用途：
+# 每分钟执行服务器巡检，每天清理超过 7 天的报告和单次运行日志。
+# 部署位置：/etc/cron.d/linux-server-inspector
+
+# 整体执行流程：
+# 开始
+#   ↓
+# crond 读取配置
+#   ├─ 每分钟 → 启动 server_check.sh
+#   │             └─ 输出追加到 cron_launcher.log
+#   └─ 每天 20:40 → 执行 cleanup.py --keep-days 7 --apply --notify
+#                 ├─ 清理过期资料并发送钉钉汇总
+#                 └─ 输出追加到 cleanup_launcher.log
+#   ↓
+# 等待下一次调度
+
+# 主要配置：
+# SHELL：执行任务使用的 Shell。
+# PATH：查找系统命令的目录。
+# MAILTO：关闭本机邮件通知，输出保存在文件中。
+# --keep-days 7：保留最近连续 7 天的文件。
+# --apply：实际删除符合规则的过期文件。
+# --notify：清理完成后发送资料清理及最近巡检状态汇总。
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+# 每分钟执行巡检，使用已有运行锁防止重复执行。
+* * * * * root /bin/bash /opt/linux-server-inspector/server_check.sh >> /opt/linux-server-inspector/logs/cron_launcher.log 2>&1
+
+# 每天晚上 20:40 清理过期文件并发送钉钉汇总，时间以 Linux 系统时间为准。
+# 使用独立的清理锁，防止多个清理任务同时执行。
+40 20 * * * root /usr/bin/flock -n /opt/linux-server-inspector/.cleanup.lock /opt/linux-server-inspector/.venv/bin/python /opt/linux-server-inspector/src/cleanup.py --keep-days 7 --apply --notify >> /opt/linux-server-inspector/logs/cleanup_launcher.log 2>&1

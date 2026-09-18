@@ -1,0 +1,165 @@
+# ============================================================
+# 文件名称：config.yaml
+# 文件用途：
+#   集中保存巡检阈值、检查对象和输出位置。
+#
+# 主要配置项：
+#   thresholds         CPU、内存、磁盘使用率阈值
+#   processes          必须存在的进程名称
+#   services           必须处于 active 状态的服务
+#   network            必需端口和允许端口
+#   security           安全检查规则
+#   logs               日志检查对象与告警规则
+#   collector          采集脚本执行设置
+#   alerts             外部告警、重复提醒和状态文件设置
+#   output             报告和运行日志的输出位置
+#
+# 注意：
+#   YAML 使用空格缩进，不要使用 Tab。
+#   这些配置将在后续 Python 模块接入后生效。
+# ============================================================
+
+
+# ---------- 1. 资源使用率阈值 ----------
+# 单位为百分比：
+# 小于 warn：PASS。
+# 大于等于 warn、且小于 fail：WARN。
+# 大于等于 fail：FAIL。
+thresholds:
+  cpu:
+    warn: 70
+    fail: 90
+
+  memory:
+    warn: 70
+    fail: 90
+
+  disk:
+    warn: 75
+    fail: 90
+
+
+# ---------- 2. 必须存在的进程 ----------
+# 按进程名称精确匹配；缺失时判定 FAIL。
+processes:
+  - sshd
+  - crond
+
+
+# ---------- 3. 必需服务 ----------
+# 未找到或不处于 active 状态时判定 FAIL。
+# 当前已验证 sshd、crond，先检查这两个。
+# nginx 尚未部署，暂不列为必需服务。
+# firewalld 单独按照安全规则检查，避免重复告警。
+services:
+  - sshd
+  - crond
+
+
+# ---------- 4. TCP 端口规则 ----------
+network:
+  # 必须监听的端口；缺失时 FAIL。
+  required_ports:
+    - 22
+
+  # 允许监听的端口；出现列表之外的端口时 WARN。
+  # 允许端口不要求全部存在。
+  # 暂时保留设计文档中的列表，不自动放行已发现的其他端口。
+  allowed_ports:
+    - 22
+    - 80
+    - 443
+
+  # true 表示也检查仅绑定回环地址的监听记录。
+  # 报告会保留绑定地址，区分本机监听和其他监听。
+  check_loopback_listeners: true
+
+
+# ---------- 5. 安全检查规则 ----------
+# 以下规则只影响判断，不修改系统配置。
+security:
+  # firewalld 未运行时 WARN。
+  warn_if_firewalld_not_running: true
+
+  # PermitRootLogin 为 yes 时 WARN。
+  warn_if_root_login_yes: true
+
+  # PasswordAuthentication 为 yes 时 WARN。
+  warn_if_password_authentication_yes: true
+
+
+# ---------- 6. 日志分析规则 ----------
+logs:
+  # 除系统错误和 SSH 日志之外，还采集这些服务的错误日志。
+  services:
+    - sshd
+    - crond
+
+  # 采集到系统或指定服务的错误日志时 WARN。
+  # 当前不直接按日志条数判定 FAIL。
+  warn_on_error_entries: true
+
+  # 在返回的 SSH 日志中识别到登录失败记录时 WARN。
+  warn_on_ssh_login_failure: true
+
+  # 达到采集条数上限时 WARN，说明结果可能不完整。
+  warn_on_limit_reached: true
+
+  # 当前 log.sh 固定查询最近 24 小时，每类最多 50 条。
+  # 时间范围和条数以脚本返回值为准，此处不重复配置。
+
+
+# ---------- 7. 采集器设置 ----------
+collector:
+  # 单个采集脚本的整体超时，单位秒。
+  timeout_seconds: 120
+
+
+# ---------- 8. 钉钉告警 ----------
+# 凭据不写入本文件。运行时优先读取：
+#   DINGTALK_WEBHOOK_URL
+#   DINGTALK_WEBHOOK_SECRET
+# 缺少环境变量时，再读取 credential_file 指向的仓库外受限文件。
+alerts:
+  dingtalk:
+    # 初始交付默认关闭；当前已完成 dry-run 和显式 test-send 验证，启用真实告警。
+    enabled: true
+
+    # 默认仅发送 FAIL；如需同时发送 WARN，可显式加入 WARN。
+    statuses:
+      - FAIL
+
+    # 同一主机、分类和对象组成稳定故障标识；数值变化不改变标识。
+    repeat_interval_minutes: 30
+
+    # 单次 HTTPS 请求超时；程序不自动重试，避免无限重复发送。
+    request_timeout_seconds: 10
+
+    # 限制消息体中的明细数和总字符数。
+    max_details: 10
+    max_message_chars: 4000
+
+    # 每天清理任务可显式发送独立汇总，不参与故障重复抑制。
+    cleanup_notification_enabled: true
+    cleanup_max_details: 30
+
+    # 最近巡检快照由 main.py 原子写入，清理通知不解析 TXT 报告。
+    latest_snapshot_file: runtime/latest_inspection.json
+    snapshot_max_age_minutes: 5
+
+    # 默认不 @ 所有人。
+    at_all: false
+
+    # 相对路径按项目根目录解释；文件采用原子写入。
+    state_file: runtime/dingtalk_alert_state.json
+
+    # Linux 端示例路径；文件必须在仓库外并设置为 600。
+    # 内容格式见 docs/deployment.md，不要在仓库中创建真实凭据。
+    credential_file: /etc/linux-server-inspector/dingtalk.env
+
+
+# ---------- 9. 输出位置 ----------
+# 相对路径均以项目根目录为基准。
+output:
+  report_dir: reports
+  log_dir: logs

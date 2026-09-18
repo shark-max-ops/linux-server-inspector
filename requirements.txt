@@ -1,0 +1,5 @@
+# 文件用途：记录项目运行所需的第三方 Python 依赖。
+# 本文件没有变量；== 表示固定安装版本。
+# PyYAML 用于读取 config/config.yaml，版本兼容 Python 3.6。
+
+PyYAML==6.0.1

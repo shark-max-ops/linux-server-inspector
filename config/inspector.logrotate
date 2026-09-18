@@ -1,0 +1,39 @@
+# 文件用途：
+# 对巡检入口日志和清理入口日志进行轮转，
+# 防止两个持续追加的日志文件一直增长。
+# 部署位置：/etc/logrotate.d/linux-server-inspector
+
+# 整体执行流程：
+# 开始
+#   ↓
+# 系统运行 logrotate，读取本配置
+#   ↓
+# 检查两个入口日志
+#   ├─ 文件不存在 → 跳过
+#   ├─ 文件为空 → 跳过
+#   └─ 达到每日轮转条件 → 进行轮转
+#   ↓
+# 将旧日志改名保存，创建新的同名日志
+#   ↓
+# 延迟一轮压缩，保留最多 7 份历史日志
+#   ↓
+# 结束
+
+# 主要配置：
+# daily：按天判断是否需要轮转。
+# rotate 7：每个日志最多保留 7 份历史文件。
+# missingok：文件不存在时不报错。
+# notifempty：空文件不轮转。
+# compress：压缩历史日志。
+# delaycompress：最近一份历史日志暂不压缩。
+# create：新日志权限为 600，所有者和组均为 root。
+
+/opt/linux-server-inspector/logs/cron_launcher.log /opt/linux-server-inspector/logs/cleanup_launcher.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0600 root root
+}

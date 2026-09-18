@@ -1,0 +1,18 @@
+# 文件用途：排除本地运行产物、凭据和虚拟环境，避免误提交。
+# 流程：Git 扫描工作区 → 匹配下列规则 → 忽略对应本地文件。
+# 主要路径：runtime 为告警状态；secrets/local 为本地凭据占位目录。
+
+.venv/
+__pycache__/
+*.py[cod]
+
+logs/
+runtime/
+reports/inspection_*.txt
+reports/demo_report_*.txt
+
+secrets/
+config/*.secret
+config/*.secrets
+config/*.env
+.env
